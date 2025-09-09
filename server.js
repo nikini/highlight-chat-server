@@ -8,48 +8,73 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files (like overlay.html)
-app.get('/overlay', (req, res) => {
-res.sendFile(path.join(__dirname, 'public', 'overlay.html'));
+// ---- allow-list of namespaces (rooms) ----
+const allowedNamespaces = new Set(['vpm-yt-b8j4l', 'chip-guy-yt-j7rup']); // add more like: 'abc', 'demo'
+
+// ---- per-namespace state ----
+const overlays = new Map();        // ns -> overlay WebSocket
+const lastMessages = new Map();    // ns -> last JSON/string message
+
+// Serve overlay page for a given namespace
+app.get('/:ns/overlay', (req, res) => {
+  const ns = req.params.ns;
+  if (!allowedNamespaces.has(ns)) return res.status(403).send('Namespace not allowed');
+  res.sendFile(path.join(__dirname, 'public', 'overlay.html'));
 });
 
+// (Optional) block old non-namespaced route explicitly
+app.get('/overlay', (_req, res) => res.status(404).send('Use /:ns/overlay'));
+
 // Handle WebSocket connections
-let overlaySocket = null;
-let lastMessage = null;
-
 wss.on('connection', (ws, req) => {
-  const isOverlay = req.url === '/overlay';
-  const isExtension = req.url === '/extension';
+  // Expected paths:
+  //   /:ns/overlay
+  //   /:ns/extension
+  // (reject if not matching)
+  const parts = req.url.split('/').filter(Boolean); // e.g. ['vpm','overlay']
+  const [ns, role] = parts.length === 2 ? parts : [null, null];
 
-  console.log(`[WebSocket] New ${isOverlay ? 'overlay' : 'extension'} connection`);
+  const isOverlay = role === 'overlay';
+  const isExtension = role === 'extension';
+
+  // Validate namespace and role
+  if (!ns || (!isOverlay && !isExtension) || !allowedNamespaces.has(ns)) {
+    try { ws.close(1008, 'Namespace or path not allowed'); } catch {}
+    return;
+  }
+
+  console.log(`[WebSocket] New ${role} connection in ns="${ns}"`);
 
   if (isOverlay) {
-    overlaySocket = ws;
-    if (lastMessage && ws.readyState === WebSocket.OPEN) {
-      ws.send(lastMessage);
+    // Track overlay socket for this namespace
+    overlays.set(ns, ws);
+
+    // If we already have a last message for this ns, replay it to the new overlay
+    const last = lastMessages.get(ns);
+    if (last && ws.readyState === WebSocket.OPEN) {
+      ws.send(last);
     }
   }
 
-  // send the message also for extension
-  if (isExtension && lastMessage && ws.readyState === WebSocket.OPEN) {
-    ws.send(lastMessage);
-  }
-
   ws.on('message', (msg) => {
-    console.log(`[WebSocket] Received message: ${msg}`);
-
+    // Typically extensions send messages; forward to overlay in same namespace
     if (isExtension) {
-      lastMessage = msg;
+      lastMessages.set(ns, msg);
+
+      const overlaySocket = overlays.get(ns);
       if (overlaySocket && overlaySocket.readyState === WebSocket.OPEN) {
         overlaySocket.send(msg);
       }
     }
+
+    console.log(`[WebSocket] (${ns}/${role}) Received: ${msg}`);
   });
 
   ws.on('close', () => {
-    if (isOverlay && ws === overlaySocket) {
-      overlaySocket = null;
+    if (isOverlay && overlays.get(ns) === ws) {
+      overlays.delete(ns);
     }
+    // No need to clean lastMessages; keeping it lets new overlays get state instantly
   });
 });
 
@@ -57,4 +82,6 @@ wss.on('connection', (ws, req) => {
 const PORT = 3001;
 server.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
+  console.log(`➡️  Allowed namespaces: ${Array.from(allowedNamespaces).join(', ')}`);
+  console.log(`➡️  Overlay page example: http://localhost:${PORT}/vpm/overlay`);
 });
