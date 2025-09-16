@@ -118,7 +118,14 @@
     const message = document.getElementById('message');
     const amount = document.getElementById('amount');
 
-    const socket = new WebSocket('ws://localhost:3001/overlay');
+    const parts = location.pathname.split('/').filter(Boolean);
+    const namespace = parts[0];   // e.g. "vpm-yt-b8j4l"
+    const role = parts[1];        // "overlay"
+
+    const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const ws = new WebSocket(`${protocol}${location.host}/${namespace}/${role}`);
+
+    console.log('Namespace:', namespace);
 
     socket.onmessage = async (event) => {
       try {
