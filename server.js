@@ -80,7 +80,7 @@ wss.on('connection', (ws, req) => {
 
 // Start server
 const PORT = 3001;
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`➡️  Allowed namespaces: ${Array.from(allowedNamespaces).join(', ')}`);
   console.log(`➡️  Overlay page example: http://localhost:${PORT}/vpm/overlay`);
