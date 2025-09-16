@@ -123,7 +123,7 @@
     const role = parts[1];        // "overlay"
 
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const ws = new WebSocket(`${protocol}${location.host}/${namespace}/${role}`);
+    const socket = new WebSocket(`${protocol}${location.host}/${namespace}/${role}`);
 
     console.log('Namespace:', namespace);
 
