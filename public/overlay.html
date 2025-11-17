@@ -133,7 +133,6 @@
       keepAliveTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send('ping'); // lightweight keep-alive message
-          console.log('>>PING');
         }
       }, KEEP_ALIVE_INTERVAL);
     });
