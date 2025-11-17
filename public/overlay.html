@@ -124,8 +124,25 @@
 
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
     const socket = new WebSocket(`${protocol}${location.host}/${namespace}/${role}`);
+    const KEEP_ALIVE_INTERVAL = 30000; // ms
+    let keepAliveTimer = null;
 
     console.log('Namespace:', namespace);
+
+    socket.addEventListener('open', () => {
+      keepAliveTimer = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send('ping'); // lightweight keep-alive message
+        }
+      }, KEEP_ALIVE_INTERVAL);
+    });
+
+    socket.addEventListener('close', () => {
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
+    });
 
     socket.onmessage = async (event) => {
       try {
