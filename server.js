@@ -7,6 +7,11 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+const KEEP_ALIVE_INTERVAL = 30000; // ms between ping frames
+
+function heartbeat() {
+  this.isAlive = true;
+}
 
 // ---- allow-list of namespaces (rooms) ----
 const allowedNamespaces = new Set(['vpm-yt-b8j4l', 'chip-guy-yt-j7rup']); // add more like: 'abc', 'demo'
@@ -24,6 +29,23 @@ app.get('/:ns/overlay', (req, res) => {
 
 // (Optional) block old non-namespaced route explicitly
 app.get('/overlay', (_req, res) => res.status(404).send('Use /:ns/overlay'));
+
+// Periodically ping every client to keep the connections alive and detect drops
+const keepAliveTimer = setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.isAlive === false) {
+      try { client.terminate(); } catch {}
+      return;
+    }
+
+    client.isAlive = false;
+    if (client.readyState === WebSocket.OPEN) {
+      client.ping(); // tells the browser to respond with pong
+    }
+  });
+}, KEEP_ALIVE_INTERVAL);
+
+wss.on('close', () => clearInterval(keepAliveTimer));
 
 // Handle WebSocket connections
 wss.on('connection', (ws, req) => {
@@ -44,6 +66,9 @@ wss.on('connection', (ws, req) => {
   }
 
   console.log(`[WebSocket] New ${role} connection in ns="${ns}"`);
+
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
 
   if (isOverlay) {
     // Track overlay socket for this namespace
