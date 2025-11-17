@@ -124,7 +124,7 @@
 
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
     const socket = new WebSocket(`${protocol}${location.host}/${namespace}/${role}`);
-    const KEEP_ALIVE_INTERVAL = 30000; // ms
+    const KEEP_ALIVE_INTERVAL = 5000; // ms
     let keepAliveTimer = null;
 
     console.log('Namespace:', namespace);
@@ -133,6 +133,7 @@
       keepAliveTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send('ping'); // lightweight keep-alive message
+          console.log('>>PING');
         }
       }, KEEP_ALIVE_INTERVAL);
     });
